@@ -63,38 +63,20 @@ public static class ScreenshotCapture
             float relY = (float)(gesture.Center.Y - captureBounds.Y);
             float radiusX = (float)Math.Max(24.0, gesture.HalfWidth > 0 ? gesture.HalfWidth : gesture.Radius);
             float radiusY = (float)Math.Max(24.0, gesture.HalfHeight > 0 ? gesture.HalfHeight : gesture.Radius);
-            float haloRadiusX = radiusX * 1.35f;
-            float haloRadiusY = radiusY * 1.35f;
 
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            // Radial gradient halo
-            using (var path = new GraphicsPath())
-            {
-                path.AddEllipse(
-                    relX - haloRadiusX,
-                    relY - haloRadiusY,
-                    haloRadiusX * 2,
-                    haloRadiusY * 2);
-                using var pgb = new PathGradientBrush(path)
-                {
-                    CenterPoint = new PointF(relX, relY),
-                    CenterColor = Color.FromArgb(46, 0, 180, 255),
-                    SurroundColors = [Color.FromArgb(0, 0, 120, 255)]
-                };
-                g.FillPath(pgb, path);
-            }
-
-            // Outer ring
-            float strokeWidth = Math.Max(4f, Math.Max(radiusX, radiusY) * 0.055f);
-            using var pen = new Pen(Color.FromArgb(230, 0, 122, 255), strokeWidth);
+            // A precise, restrained keyline keeps the target legible without
+            // tinting the referenced content or adding a decorative halo.
+            float strokeWidth = Math.Clamp(Math.Max(radiusX, radiusY) * 0.025f, 2.0f, 3.5f);
+            using var pen = new Pen(Color.FromArgb(220, 111, 143, 184), strokeWidth);
             g.DrawEllipse(pen, relX - radiusX, relY - radiusY, radiusX * 2, radiusY * 2);
 
             if (captureMode == ScreenContextCaptureMode.CroppedSelection)
             {
                 // The output itself carries a subtle crop boundary so the referenced
                 // component remains obvious when the image is pasted into another app.
-                using var cropPen = new Pen(Color.FromArgb(210, 64, 196, 255), 3f)
+                using var cropPen = new Pen(Color.FromArgb(160, 111, 143, 184), 2f)
                 {
                     Alignment = PenAlignment.Inset
                 };

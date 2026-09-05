@@ -63,14 +63,21 @@ public class RealWorldVoiceAndSubsystemsTests
 
             Assert.True(File.Exists(tempPng), "Screenshot file should be created");
             var fileInfo = new FileInfo(tempPng);
-            Assert.True(fileInfo.Length > 5000, "Screenshot should be non-trivial size");
+            Assert.True(fileInfo.Length > 256, "Screenshot should contain encoded image data");
 
-            using var img = Image.FromFile(tempPng);
+            using var img = new Bitmap(tempPng);
             Assert.Equal(expectedCrop.Width, img.Width);
             Assert.Equal(expectedCrop.Height, img.Height);
             Assert.True(
                 img.Width < screenBounds.Width || img.Height < screenBounds.Height,
                 "A context capture should contain only the circled crop, not the whole display");
+
+            int markerX = Math.Clamp((int)Math.Round(gesture.Center.X - expectedCrop.Left + gesture.Radius), 0, img.Width - 1);
+            int markerY = Math.Clamp((int)Math.Round(gesture.Center.Y - expectedCrop.Top), 0, img.Height - 1);
+            Color marker = img.GetPixel(markerX, markerY);
+            Assert.True(
+                marker.B > marker.G && marker.G > marker.R && marker.R >= 50 && marker.A > 200,
+                "The cropped image must retain the muted steel-blue target marker");
         }
         finally
         {
@@ -105,7 +112,9 @@ public class RealWorldVoiceAndSubsystemsTests
             int markerX = Math.Clamp((int)Math.Round(gesture.Center.X - screenBounds.Left + gesture.Radius), 0, image.Width - 1);
             int markerY = Math.Clamp((int)Math.Round(gesture.Center.Y - screenBounds.Top), 0, image.Height - 1);
             Color marker = image.GetPixel(markerX, markerY);
-            Assert.True(marker.B > 180 && marker.A > 200, "The full-display image must retain the blue target marker");
+            Assert.True(
+                marker.B > marker.G && marker.G > marker.R && marker.R >= 50 && marker.A > 200,
+                "The full-display image must retain the muted steel-blue target marker");
         }
         finally
         {

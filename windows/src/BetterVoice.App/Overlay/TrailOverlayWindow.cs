@@ -25,7 +25,6 @@ public sealed class TrailOverlayWindow : Window
     private double _highlightUntil;
 
     private readonly Pen[] _fadingTrailPens;
-    private readonly Pen[] _fadingTrailGlowPens;
     private readonly Pen _circlePen;
     private readonly Brush _circleFill;
     private readonly Pen _cropPen;
@@ -45,60 +44,48 @@ public sealed class TrailOverlayWindow : Window
         Topmost = true;
 
         _fadingTrailPens = new Pen[32];
-        _fadingTrailGlowPens = new Pen[_fadingTrailPens.Length];
         for (int index = 0; index < _fadingTrailPens.Length; index++)
         {
             double opacity = (double)index / (_fadingTrailPens.Length - 1);
-            byte alpha = (byte)Math.Round(235.0 * opacity);
-            var brush = new SolidColorBrush(Color.FromArgb(alpha, 0, 170, 255));
+            byte alpha = (byte)Math.Round(175.0 * opacity);
+            var brush = new SolidColorBrush(Color.FromArgb(alpha, 111, 143, 184));
             brush.Freeze();
-            var pen = new Pen(brush, 4.5)
+            var pen = new Pen(brush, 2.25)
             {
                 StartLineCap = PenLineCap.Round,
                 EndLineCap = PenLineCap.Round
             };
             pen.Freeze();
             _fadingTrailPens[index] = pen;
-
-            byte glowAlpha = (byte)Math.Round(72.0 * opacity);
-            var glowBrush = new SolidColorBrush(Color.FromArgb(glowAlpha, 34, 211, 238));
-            glowBrush.Freeze();
-            var glowPen = new Pen(glowBrush, 12.0)
-            {
-                StartLineCap = PenLineCap.Round,
-                EndLineCap = PenLineCap.Round
-            };
-            glowPen.Freeze();
-            _fadingTrailGlowPens[index] = glowPen;
         }
 
-        var circleStroke = new SolidColorBrush(Color.FromArgb(230, 0, 122, 255));
+        var circleStroke = new SolidColorBrush(Color.FromArgb(220, 111, 143, 184));
         circleStroke.Freeze();
-        _circlePen = new Pen(circleStroke, 4.0);
+        _circlePen = new Pen(circleStroke, 2.5);
         _circlePen.Freeze();
 
-        var fillBrush = new SolidColorBrush(Color.FromArgb(40, 0, 180, 255));
+        var fillBrush = new SolidColorBrush(Color.FromArgb(10, 111, 143, 184));
         fillBrush.Freeze();
         _circleFill = fillBrush;
 
-        var cropStroke = new SolidColorBrush(Color.FromArgb(255, 103, 232, 249));
+        var cropStroke = new SolidColorBrush(Color.FromArgb(180, 111, 143, 184));
         cropStroke.Freeze();
-        _cropPen = new Pen(cropStroke, 2.5);
+        _cropPen = new Pen(cropStroke, 1.5);
         _cropPen.Freeze();
 
-        var cropFill = new SolidColorBrush(Color.FromArgb(24, 56, 189, 248));
+        var cropFill = new SolidColorBrush(Color.FromArgb(5, 111, 143, 184));
         cropFill.Freeze();
         _cropFill = cropFill;
 
-        var outsideDim = new SolidColorBrush(Color.FromArgb(82, 4, 10, 22));
+        var outsideDim = new SolidColorBrush(Color.FromArgb(64, 17, 19, 23));
         outsideDim.Freeze();
         _outsideDim = outsideDim;
 
-        var labelBackground = new SolidColorBrush(Color.FromArgb(245, 8, 20, 38));
+        var labelBackground = new SolidColorBrush(Color.FromArgb(242, 27, 30, 36));
         labelBackground.Freeze();
         _labelBackground = labelBackground;
 
-        var labelForeground = new SolidColorBrush(Color.FromRgb(186, 230, 253));
+        var labelForeground = new SolidColorBrush(Color.FromRgb(242, 244, 247));
         labelForeground.Freeze();
         _labelForeground = labelForeground;
 
@@ -225,14 +212,18 @@ public sealed class TrailOverlayWindow : Window
             dc.DrawEllipse(_circleFill, _circlePen, center, displayRadiusX, displayRadiusY);
 
             string labelText = _highlightMode == ScreenContextCaptureMode.CroppedSelection
-                ? $"CROP  {physicalCapture.Width} × {physicalCapture.Height}"
-                : "FULL DISPLAY  •  TARGET HIGHLIGHTED";
+                ? $"Crop · {physicalCapture.Width} × {physicalCapture.Height}"
+                : "Full display · target marked";
             var label = new FormattedText(
                 labelText,
                 CultureInfo.InvariantCulture,
                 System.Windows.FlowDirection.LeftToRight,
-                new Typeface("Cascadia Code"),
-                12,
+                new Typeface(
+                    new System.Windows.Media.FontFamily("Segoe UI Variable Text, Segoe UI"),
+                    FontStyles.Normal,
+                    FontWeights.SemiBold,
+                    FontStretches.Normal),
+                11,
                 _labelForeground,
                 VisualTreeHelper.GetDpi(this).PixelsPerDip);
             double labelLeft = Math.Clamp(
@@ -244,7 +235,7 @@ public sealed class TrailOverlayWindow : Window
                 Math.Max(8, captureRect.Top + (_highlightMode == ScreenContextCaptureMode.CroppedSelection ? -label.Height - 14 : 12)),
                 label.Width + 20,
                 label.Height + 10);
-            dc.DrawRoundedRectangle(_labelBackground, _cropPen, labelRect, 7, 7);
+            dc.DrawRoundedRectangle(_labelBackground, _cropPen, labelRect, 5, 5);
             dc.DrawText(label, new Point(labelRect.Left + 10, labelRect.Top + 5));
         }
 
@@ -263,7 +254,6 @@ public sealed class TrailOverlayWindow : Window
                 (int)Math.Round(alphaRatio * (_fadingTrailPens.Length - 1)),
                 0,
                 _fadingTrailPens.Length - 1);
-            dc.DrawLine(_fadingTrailGlowPens[alphaIndex], p1, p2);
             dc.DrawLine(_fadingTrailPens[alphaIndex], p1, p2);
         }
     }
