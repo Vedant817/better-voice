@@ -1,15 +1,23 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media.Imaging;
 using BetterVoice.Core;
 
 namespace BetterVoice.App.Native;
 
 public static class TextInsertion
 {
-    public readonly record struct AppContext(IntPtr HWnd, string ProcessName, DeveloperAppProfile Profile);
+    public readonly record struct AppContext(
+        IntPtr HWnd,
+        string ProcessName,
+        DeveloperAppProfile Profile,
+        IntPtr FocusedHWnd = default);
 
     public static AppContext GetCurrentContext()
     {
@@ -19,7 +27,16 @@ public static class TextInsertion
             return new AppContext(IntPtr.Zero, "general", DeveloperAppProfile.General);
         }
 
-        Win32Api.GetWindowThreadProcessId(hwnd, out uint pid);
+        uint targetThreadId = Win32Api.GetWindowThreadProcessId(hwnd, out uint pid);
+        IntPtr focusedHwnd = IntPtr.Zero;
+        var threadInfo = new Win32Api.GUITHREADINFO
+        {
+            cbSize = Marshal.SizeOf<Win32Api.GUITHREADINFO>()
+        };
+        if (targetThreadId != 0 && Win32Api.GetGUIThreadInfo(targetThreadId, ref threadInfo))
+        {
+            focusedHwnd = threadInfo.hwndFocus;
+        }
         string processName = "unknown";
         try
         {
@@ -32,30 +49,25 @@ public static class TextInsertion
         }
 
         var profile = DeveloperAppProfileExtensions.Infer(processName, processName);
-        return new AppContext(hwnd, processName, profile);
+        return new AppContext(hwnd, processName, profile, focusedHwnd);
     }
 
     public static async Task InsertTextAsync(string text, AppContext context)
     {
         if (string.IsNullOrEmpty(text)) return;
 
-        // Transcription can take long enough for another window to briefly receive
-        // focus. Restore the window that was active when recording stopped.
-        if (context.HWnd != IntPtr.Zero && Win32Api.IsWindow(context.HWnd))
-        {
-            Win32Api.SetForegroundWindow(context.HWnd);
-            await Task.Delay(50);
-        }
+        await FocusTargetAsync(context);
 
-        // Small inserts are safe as direct Unicode input. Larger batches can overrun
-        // some editors' input queues, so use the reliable clipboard path below.
-        if (text.Length <= 32 && !text.Contains('\n') && !text.Contains('\r'))
+        // Unicode input avoids a race between the transcript clipboard and the
+        // image clipboard. Bounded batches keep long transcripts from overrunning
+        // slower editors while preserving newlines and the user's clipboard.
+        if (await SendUnicodeStringChunkedAsync(text))
         {
-            SendUnicodeString(text);
             return;
         }
 
-        // For longer text or multi-line text, use the clipboard + paste method
+        // Fall back to clipboard paste only if Windows rejects the Unicode input
+        // before it can be queued.
         string? previousText = null;
         bool hadText = false;
 
@@ -79,30 +91,169 @@ public static class TextInsertion
         catch
         {
             // Fallback to direct unicode if clipboard is locked
-            SendUnicodeString(text);
+            await SendUnicodeStringChunkedAsync(text);
             return;
         }
+
+        uint insertionClipboardSequence = Win32Api.GetClipboardSequenceNumber();
 
         // Send Ctrl+V
         SendCtrlV();
 
-        // Allow target app to read from clipboard asynchronously before restoring
-        await Task.Delay(300);
+        // SendInput queues keyboard messages; keep the text clipboard stable long
+        // enough for rich editors to consume the first paste before a context
+        // image replaces it.
+        await Task.Delay(140);
 
         if (hadText && previousText != null)
         {
-            try
-            {
-                System.Windows.Clipboard.SetText(previousText);
-            }
-            catch
-            {
-                // ignored
-            }
+            // Do not keep the delivery path waiting for clipboard restoration.
+            // The sequence guard avoids overwriting a newer clipboard value that
+            // the user copied while the target application consumed the paste.
+            _ = RestoreClipboardAfterPasteAsync(previousText, insertionClipboardSequence);
         }
     }
 
-    private static void SendUnicodeString(string text)
+    public static async Task<int> InsertImagesAsync(
+        IReadOnlyList<string> imagePaths,
+        AppContext context,
+        bool waitForPriorPaste)
+    {
+        string[] existingImages = imagePaths
+            .Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            .ToArray();
+        if (existingImages.Length == 0) return 0;
+
+        await FocusTargetAsync(context);
+        if (waitForPriorPaste)
+        {
+            // Give the destination time to consume the transcript before the
+            // clipboard is replaced with the first cropped context image.
+            await Task.Delay(320);
+        }
+
+        int pastedCount = 0;
+        for (int index = 0; index < existingImages.Length; index++)
+        {
+            BitmapImage image;
+            try
+            {
+                image = LoadClipboardImage(existingImages[index]);
+            }
+            catch
+            {
+                continue;
+            }
+
+            bool copied = false;
+            for (int attempt = 0; attempt < 3 && !copied; attempt++)
+            {
+                try
+                {
+                    System.Windows.Clipboard.SetImage(image);
+                    copied = true;
+                }
+                catch
+                {
+                    if (attempt < 2)
+                    {
+                        await Task.Delay(40 * (attempt + 1));
+                    }
+                }
+            }
+
+            if (!copied) continue;
+
+            SendCtrlV();
+            pastedCount++;
+
+            if (index < existingImages.Length - 1)
+            {
+                // Rich editors consume bitmap clipboard data asynchronously.
+                await Task.Delay(350);
+            }
+        }
+
+        return pastedCount;
+    }
+
+    private static async Task FocusTargetAsync(AppContext context)
+    {
+        // Transcription can take long enough for another window to briefly receive
+        // focus. Reattach to the captured UI thread so the same focused control,
+        // not merely the same top-level window, receives the paste gesture.
+        if (context.HWnd == IntPtr.Zero || !Win32Api.IsWindow(context.HWnd)) return;
+
+        uint targetThreadId = Win32Api.GetWindowThreadProcessId(context.HWnd, out _);
+        uint currentThreadId = Win32Api.GetCurrentThreadId();
+        bool attached = targetThreadId != 0 &&
+                        targetThreadId != currentThreadId &&
+                        Win32Api.AttachThreadInput(currentThreadId, targetThreadId, true);
+        try
+        {
+            Win32Api.SetForegroundWindow(context.HWnd);
+            if (context.FocusedHWnd != IntPtr.Zero && Win32Api.IsWindow(context.FocusedHWnd))
+            {
+                Win32Api.SetFocus(context.FocusedHWnd);
+            }
+        }
+        finally
+        {
+            if (attached)
+            {
+                Win32Api.AttachThreadInput(currentThreadId, targetThreadId, false);
+            }
+        }
+
+        // SetForegroundWindow and input-queue attachment are asynchronous from
+        // the destination application's perspective.
+        await Task.Delay(120);
+    }
+
+    private static BitmapImage LoadClipboardImage(string path)
+    {
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.UriSource = new Uri(Path.GetFullPath(path), UriKind.Absolute);
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
+
+    private static async Task RestoreClipboardAfterPasteAsync(string previousText, uint insertionSequence)
+    {
+        await Task.Delay(300);
+        if (Win32Api.GetClipboardSequenceNumber() != insertionSequence) return;
+
+        try
+        {
+            System.Windows.Clipboard.SetText(previousText);
+        }
+        catch
+        {
+            // Clipboard restoration is best-effort.
+        }
+    }
+
+    private static async Task<bool> SendUnicodeStringChunkedAsync(string text)
+    {
+        const int chunkSize = 24;
+        for (int offset = 0; offset < text.Length; offset += chunkSize)
+        {
+            int length = Math.Min(chunkSize, text.Length - offset);
+            string chunk = text.Substring(offset, length);
+            if (!SendUnicodeString(chunk)) return false;
+            if (offset + length < text.Length)
+            {
+                await Task.Delay(8);
+            }
+        }
+
+        return true;
+    }
+
+    private static bool SendUnicodeString(string text)
     {
         var inputs = new Win32Api.INPUT[text.Length * 2];
         for (int i = 0; i < text.Length; i++)
@@ -137,7 +288,8 @@ public static class TextInsertion
             };
         }
 
-        Win32Api.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Win32Api.INPUT>());
+        uint sent = Win32Api.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Win32Api.INPUT>());
+        return sent == inputs.Length;
     }
 
     private static void SendCtrlV()

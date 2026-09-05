@@ -181,6 +181,8 @@ public class CircleGestureDetectorTests
         }
 
         Assert.NotNull(result);
+        Assert.InRange(result.Value.HalfWidth, 110, 120);
+        Assert.InRange(result.Value.HalfHeight, 80, 95);
     }
 
     [Fact]

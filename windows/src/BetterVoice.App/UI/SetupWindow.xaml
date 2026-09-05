@@ -2,95 +2,704 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="BetterVoice Settings"
-        Height="620" Width="480"
-        WindowStartupLocation="CenterScreen"
-        ResizeMode="NoResize"
-        Background="#0F172A"
-        Foreground="#F8FAFC">
+        Width="1040" Height="700" MinWidth="880" MinHeight="620"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanResizeWithGrip"
+        Background="#0D1117" Foreground="#F7FAFC"
+        PreviewKeyDown="OnPreviewKeyDown"
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
     <Window.Resources>
-        <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#F8FAFC" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI, sans-serif" />
-        </Style>
-        <Style TargetType="GroupBox">
-            <Setter Property="Foreground" Value="#38BDF8" />
-            <Setter Property="BorderBrush" Value="#334155" />
-            <Setter Property="Margin" Value="0,0,0,14" />
-            <Setter Property="Padding" Value="12" />
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.Dark.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <SolidColorBrush x:Key="ShellBrush" Color="#0D1117" />
+            <SolidColorBrush x:Key="SidebarBrush" Color="#11161C" />
+            <SolidColorBrush x:Key="CardBrush" Color="#171D24" />
+            <SolidColorBrush x:Key="BorderBrush" Color="#29323C" />
+            <SolidColorBrush x:Key="PrimaryTextBrush" Color="#F7FAFC" />
+            <SolidColorBrush x:Key="SecondaryTextBrush" Color="#A7B2C0" />
+            <SolidColorBrush x:Key="MutedTextBrush" Color="#748191" />
+            <SolidColorBrush x:Key="AccentBrush" Color="#1697FF" />
+            <SolidColorBrush x:Key="AccentSoftBrush" Color="#231697FF" />
+            <SolidColorBrush x:Key="CyanBrush" Color="#45D8FF" />
+            <SolidColorBrush x:Key="SuccessBrush" Color="#4ADE80" />
+            <SolidColorBrush x:Key="WarmBrush" Color="#FFC857" />
+
+            <Style TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            </Style>
+            <Style x:Key="PageHeadingStyle" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
+                <Setter Property="FontSize" Value="25" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+            <Style x:Key="SectionHeadingStyle" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+            <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+                <Setter Property="Margin" Value="0,0,0,7" />
+            </Style>
+            <Style x:Key="MetricLabelStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                <Setter Property="FontFamily" Value="Cascadia Code, Consolas" />
+                <Setter Property="FontSize" Value="10" />
+            </Style>
+            <Style x:Key="CardStyle" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource CardBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="14" />
+                <Setter Property="Padding" Value="20" />
+            </Style>
+
+            <Style x:Key="NavItemStyle" TargetType="RadioButton">
+                <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Height" Value="42" />
+                <Setter Property="Margin" Value="0,2" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="NavSurface" Background="Transparent" CornerRadius="9" Padding="11,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="4" />
+                                        <ColumnDefinition Width="30" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border x:Name="ActiveRail" Width="3" Height="20" CornerRadius="2"
+                                            Background="{StaticResource AccentBrush}" Opacity="0" />
+                                    <TextBlock Grid.Column="1" Text="{TemplateBinding Tag}"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="16" VerticalAlignment="Center"
+                                               Foreground="{TemplateBinding Foreground}" />
+                                    <ContentPresenter Grid.Column="2" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="NavSurface" Property="Background" Value="#111697FF" />
+                                    <Setter Property="Foreground" Value="#DCEEFF" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="NavSurface" Property="BorderBrush" Value="{StaticResource CyanBrush}" />
+                                    <Setter TargetName="NavSurface" Property="BorderThickness" Value="1" />
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="NavSurface" Property="Background" Value="{StaticResource AccentSoftBrush}" />
+                                    <Setter TargetName="ActiveRail" Property="Opacity" Value="1" />
+                                    <Setter Property="Foreground" Value="#FFFFFF" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="#222B35" />
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+                <Setter Property="BorderBrush" Value="#34404C" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="14,8" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="ButtonSurface" Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ButtonSurface" Property="Background" Value="#2B3743" />
+                                    <Setter TargetName="ButtonSurface" Property="BorderBrush" Value="#526273" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="ButtonSurface" Property="Opacity" Value="0.78" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="ButtonSurface" Property="BorderBrush" Value="{StaticResource CyanBrush}" />
+                                    <Setter TargetName="ButtonSurface" Property="BorderThickness" Value="2" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="AccentButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="14,8" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="AccentSurface" Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="AccentSurface" Property="Background" Value="#3AABFF" />
+                                    <Setter TargetName="AccentSurface" Property="BorderBrush" Value="#6CC2FF" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="AccentSurface" Property="Background" Value="#0879D1" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="AccentSurface" Property="BorderBrush" Value="{StaticResource WarmBrush}" />
+                                    <Setter TargetName="AccentSurface" Property="BorderThickness" Value="2" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="SwitchStyle" TargetType="CheckBox">
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="CheckBox">
+                            <Grid Background="Transparent">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="48" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="Track" Width="40" Height="22" CornerRadius="11"
+                                        HorizontalAlignment="Left" VerticalAlignment="Center"
+                                        Background="#38424D" BorderBrush="#52606D" BorderThickness="1">
+                                    <Ellipse x:Name="Thumb" Width="16" Height="16" Margin="2"
+                                             HorizontalAlignment="Left" Fill="#E6EDF3" />
+                                </Border>
+                                <ContentPresenter Grid.Column="1" Margin="4,0,0,0" VerticalAlignment="Center" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Track" Property="Background" Value="{StaticResource AccentBrush}" />
+                                    <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                    <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                                    <Setter TargetName="Thumb" Property="Fill" Value="White" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource CyanBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource WarmBrush}" />
+                                    <Setter TargetName="Track" Property="BorderThickness" Value="2" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.42" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="CaptureModeCardStyle" TargetType="RadioButton">
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="ModeSurface" Background="#121820" BorderBrush="#303A45"
+                                    BorderThickness="1" CornerRadius="11" Padding="14,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Width="18" Height="18" VerticalAlignment="Top" Margin="0,2,0,0">
+                                        <Ellipse x:Name="ModeRing" Stroke="#697786" StrokeThickness="2" />
+                                        <Ellipse x:Name="ModeDot" Width="8" Height="8" Fill="{StaticResource CyanBrush}" Opacity="0" />
+                                    </Grid>
+                                    <ContentPresenter Grid.Column="1" VerticalAlignment="Center" />
+                                    <Border x:Name="ModeBadge" Grid.Column="2" CornerRadius="6" Background="#18232E"
+                                            BorderBrush="#344555" BorderThickness="1" Padding="8,4" VerticalAlignment="Top">
+                                        <TextBlock Text="{TemplateBinding Tag}" Style="{StaticResource MetricLabelStyle}" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ModeSurface" Property="Background" Value="#17222D" />
+                                    <Setter TargetName="ModeSurface" Property="BorderBrush" Value="#496073" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="ModeSurface" Property="BorderBrush" Value="{StaticResource WarmBrush}" />
+                                    <Setter TargetName="ModeSurface" Property="BorderThickness" Value="2" />
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="ModeSurface" Property="Background" Value="{StaticResource AccentSoftBrush}" />
+                                    <Setter TargetName="ModeSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                    <Setter TargetName="ModeRing" Property="Stroke" Value="{StaticResource AccentBrush}" />
+                                    <Setter TargetName="ModeDot" Property="Opacity" Value="1" />
+                                    <Setter TargetName="ModeBadge" Property="Background" Value="#24236FB0" />
+                                    <Setter TargetName="ModeBadge" Property="BorderBrush" Value="#4F45D8FF" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
     </Window.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20">
-        <StackPanel>
-            <!-- Header -->
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
-                <Border Width="36" Height="36" CornerRadius="8" Background="#0284C7" Margin="0,0,12,0">
-                    <TextBlock Text="BV" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White" />
+    <Grid Background="{StaticResource ShellBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="224" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="{StaticResource SidebarBrush}" BorderBrush="#27303A" BorderThickness="0,0,1,0">
+            <Grid Margin="16,20,16,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid Margin="4,0,4,24">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="44" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="36" Height="36" CornerRadius="10">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#45D8FF" Offset="0" />
+                                <GradientStop Color="#1677FF" Offset="0.56" />
+                                <GradientStop Color="#705CFF" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Grid>
+                            <Ellipse Width="20" Height="20" Stroke="White" StrokeThickness="2" />
+                            <Rectangle Width="2" Height="10" RadiusX="1" RadiusY="1" Fill="White" />
+                            <Rectangle Width="2" Height="6" RadiusX="1" RadiusY="1" Fill="White" Margin="-8,0,0,0" />
+                            <Rectangle Width="2" Height="6" RadiusX="1" RadiusY="1" Fill="White" Margin="8,0,0,0" />
+                        </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="BetterVoice" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="15" FontWeight="Bold" />
+                        <TextBlock Text="WINDOWS  /  LOCAL" Style="{StaticResource MetricLabelStyle}" Foreground="{StaticResource CyanBrush}" />
+                    </StackPanel>
+                </Grid>
+                <TextBlock Grid.Row="1" Text="CONTROL DECK" Style="{StaticResource MetricLabelStyle}" Margin="10,0,0,7" />
+                <StackPanel Grid.Row="2">
+                    <RadioButton x:Name="OverviewNav" Content="Overview" Tag="&#xE80F;" GroupName="Navigation" IsChecked="True"
+                                 Style="{StaticResource NavItemStyle}" Click="OnNavigationClicked" />
+                    <RadioButton x:Name="DictationNav" Content="Dictation" Tag="&#xE720;" GroupName="Navigation"
+                                 Style="{StaticResource NavItemStyle}" Click="OnNavigationClicked" />
+                    <RadioButton x:Name="ContextNav" Content="Visual context" Tag="&#xE91B;" GroupName="Navigation"
+                                 Style="{StaticResource NavItemStyle}" Click="OnNavigationClicked" />
+                    <RadioButton x:Name="ShortcutsNav" Content="Shortcuts" Tag="&#xE765;" GroupName="Navigation"
+                                 Style="{StaticResource NavItemStyle}" Click="OnNavigationClicked" />
+                    <RadioButton x:Name="StorageNav" Content="Storage" Tag="&#xE8B7;" GroupName="Navigation"
+                                 Style="{StaticResource NavItemStyle}" Click="OnNavigationClicked" />
+                </StackPanel>
+                <Border Grid.Row="3" CornerRadius="10" Background="#121697FF" BorderBrush="#271697FF" BorderThickness="1" Padding="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="&#xE72E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15"
+                                   Foreground="{StaticResource CyanBrush}" />
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Local by default" FontSize="11" FontWeight="SemiBold" />
+                            <TextBlock Text="Audio stays on this PC" FontSize="10" Foreground="{StaticResource MutedTextBrush}" />
+                        </StackPanel>
+                    </Grid>
                 </Border>
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="BetterVoice for Windows" FontSize="18" FontWeight="Bold" />
-                    <TextBlock Text="Fast, local voice dictation &amp; gestures" FontSize="12" Foreground="#94A3B8" />
-                </StackPanel>
-            </StackPanel>
+            </Grid>
+        </Border>
 
-            <!-- Audio Input -->
-            <GroupBox Header="Audio Input">
-                <StackPanel>
-                    <TextBlock Text="Microphone" FontSize="12" Foreground="#94A3B8" Margin="0,0,0,6" />
-                    <ComboBox x:Name="MicComboBox" Height="32" Background="#1E293B" Foreground="#0F172A" SelectionChanged="OnMicChanged" />
-                </StackPanel>
-            </GroupBox>
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="86" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0" BorderBrush="#27303A" BorderThickness="0,0,0,1" Padding="28,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="PageTitleText" Text="Overview" Style="{StaticResource PageHeadingStyle}" />
+                        <TextBlock x:Name="PageDescriptionText" Text="Your recording setup at a glance."
+                                   FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,3,0,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border CornerRadius="16" Background="#1422C55E" BorderBrush="#334ADE80" BorderThickness="1"
+                                Padding="10,6" Margin="0,0,12,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="SaveStatusDot" Width="7" Height="7" Fill="{StaticResource SuccessBrush}"
+                                         Margin="0,0,7,0" VerticalAlignment="Center" />
+                                <TextBlock x:Name="SaveStatusText" Text="Auto-save on" FontSize="11" Foreground="#CFF7DC" />
+                            </StackPanel>
+                        </Border>
+                        <Button Content="Done" Style="{StaticResource AccentButtonStyle}" Click="OnDoneClicked"
+                                IsDefault="True" MinWidth="78" />
+                    </StackPanel>
+                </Grid>
+            </Border>
 
-            <!-- Shortcut & Trigger Mode -->
-            <GroupBox Header="Shortcut &amp; Triggers">
-                <StackPanel>
-                    <TextBlock Text="Quick Note Trigger Mode" FontSize="12" Foreground="#94A3B8" Margin="0,0,0,6" />
-                    <ComboBox x:Name="TriggerModeComboBox" Height="32" Background="#1E293B" Foreground="#0F172A" SelectionChanged="OnTriggerModeChanged">
-                        <ComboBoxItem Content="Hold Alt to record" />
-                        <ComboBoxItem Content="Press Alt to toggle" />
-                        <ComboBoxItem Content="Double-tap Alt to toggle" />
-                    </ComboBox>
+            <Grid Grid.Row="1" Margin="28,24,28,26">
+                <ScrollViewer x:Name="OverviewPage" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Border Style="{StaticResource CardStyle}" Padding="26" Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.35*" />
+                                    <ColumnDefinition Width="0.65*" MinWidth="230" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,30,0">
+                                    <TextBlock Text="TALK  /  POINT  /  PASTE" Style="{StaticResource MetricLabelStyle}"
+                                               Foreground="{StaticResource CyanBrush}" Margin="0,0,0,12" />
+                                    <TextBlock Text="Give your tools the whole thought." FontFamily="Segoe UI Variable Display, Segoe UI"
+                                               FontSize="27" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBlock Text="Speak naturally, circle what matters, and BetterVoice keeps your words and screen context together—without sending audio away."
+                                               FontSize="13" LineHeight="20" Foreground="{StaticResource SecondaryTextBrush}"
+                                               TextWrapping="Wrap" Margin="0,10,0,18" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Tune dictation" Style="{StaticResource AccentButtonStyle}"
+                                                Click="OnOpenDictationClicked" Margin="0,0,10,0" />
+                                        <Button Content="Set up circles" Style="{StaticResource SecondaryButtonStyle}" Click="OnOpenContextClicked" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <Border Grid.Column="1" CornerRadius="12" Background="#0F141A" BorderBrush="#25313D"
+                                        BorderThickness="1" Padding="20">
+                                    <Grid>
+                                        <Ellipse Width="142" Height="142" Stroke="#351697FF" StrokeThickness="24" />
+                                        <Ellipse Width="142" Height="142" Stroke="{StaticResource AccentBrush}"
+                                                 StrokeThickness="3" StrokeDashArray="10,4" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Rectangle Width="4" Height="20" RadiusX="2" Fill="#5075CFFF" Margin="2" />
+                                            <Rectangle Width="4" Height="34" RadiusX="2" Fill="{StaticResource CyanBrush}" Margin="2" />
+                                            <Rectangle Width="4" Height="48" RadiusX="2" Fill="{StaticResource AccentBrush}" Margin="2" />
+                                            <Rectangle Width="4" Height="28" RadiusX="2" Fill="{StaticResource CyanBrush}" Margin="2" />
+                                            <Rectangle Width="4" Height="40" RadiusX="2" Fill="{StaticResource AccentBrush}" Margin="2" />
+                                            <Rectangle Width="4" Height="18" RadiusX="2" Fill="#5075CFFF" Margin="2" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
 
-                    <TextBlock Text="Hold Delay (ms)" FontSize="12" Foreground="#94A3B8" Margin="0,12,0,4" />
-                    <DockPanel>
-                        <TextBlock x:Name="HoldDelayLabel" Text="140 ms" Width="55" DockPanel.Dock="Right" TextAlignment="Right" Foreground="#38BDF8" />
-                        <Slider x:Name="HoldDelaySlider" Minimum="50" Maximum="500" Value="140" TickFrequency="10" IsSnapToTickEnabled="True" ValueChanged="OnHoldDelayChanged" />
-                    </DockPanel>
-                </StackPanel>
-            </GroupBox>
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,10,0" Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="INPUT" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="OverviewMicLabel" Text="System microphone" FontSize="14" FontWeight="SemiBold"
+                                               Margin="0,8,0,2" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="Ready for local capture" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="5,0" Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="LANGUAGE" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="OverviewLanguageLabel" Text="English" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,2" />
+                                    <TextBlock x:Name="OverviewModelLabel" Text="Balanced model" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Style="{StaticResource CardStyle}" Margin="10,0,0,0" Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="QUICK NOTE" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="OverviewShortcutLabel" Text="Hold Alt" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,2" />
+                                    <TextBlock Text="Global from any app" Foreground="{StaticResource MutedTextBrush}" FontSize="11" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
 
-            <!-- Circle Gesture Detector -->
-            <GroupBox Header="Pointer Circle Gesture">
-                <StackPanel>
-                    <TextBlock Text="Minimum Circle Angle Sensitivity" FontSize="12" Foreground="#94A3B8" Margin="0,0,0,4" />
-                    <DockPanel>
-                        <TextBlock x:Name="AngleLabel" Text="340°" Width="55" DockPanel.Dock="Right" TextAlignment="Right" Foreground="#38BDF8" />
-                        <Slider x:Name="AngleSlider" Minimum="300" Maximum="359" Value="340" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="OnAngleChanged" />
-                    </DockPanel>
-                    <TextBlock Text="Draw a continuous circle around text or UI elements to attach a screenshot context." FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,6,0,0" />
-                </StackPanel>
-            </GroupBox>
+                        <Border Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="One flow, three moments" Style="{StaticResource SectionHeadingStyle}" />
+                                <TextBlock Text="The interaction stays out of your way until you need it."
+                                           Foreground="{StaticResource SecondaryTextBrush}" FontSize="12" Margin="0,4,0,16" />
+                                <UniformGrid Columns="3">
+                                    <StackPanel Margin="0,0,18,0">
+                                        <TextBlock Text="01  SPEAK" Style="{StaticResource MetricLabelStyle}" Foreground="{StaticResource CyanBrush}" />
+                                        <TextBlock Text="Record from any field" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,2" />
+                                        <TextBlock Text="Use your quick-note trigger without changing apps." FontSize="11"
+                                                   Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Margin="9,0">
+                                        <TextBlock Text="02  CIRCLE" Style="{StaticResource MetricLabelStyle}" Foreground="{StaticResource CyanBrush}" />
+                                        <TextBlock Text="Point to visual context" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,2" />
+                                        <TextBlock Text="Draw a deliberate loop around anything important." FontSize="11"
+                                                   Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Margin="18,0,0,0">
+                                        <TextBlock Text="03  PASTE" Style="{StaticResource MetricLabelStyle}" Foreground="{StaticResource CyanBrush}" />
+                                        <TextBlock Text="Keep working" FontSize="13" FontWeight="SemiBold" Margin="0,6,0,2" />
+                                        <TextBlock Text="BetterVoice returns the result to your original app." FontSize="11"
+                                                   Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
 
-            <!-- Language & Vocabulary -->
-            <GroupBox Header="Language &amp; Text Cleanup">
-                <StackPanel>
-                    <TextBlock Text="Transcription Language" FontSize="12" Foreground="#94A3B8" Margin="0,0,0,6" />
-                    <ComboBox x:Name="LanguageComboBox" Height="32" Background="#1E293B" Foreground="#0F172A" SelectionChanged="OnLanguageChanged" />
+                <ScrollViewer x:Name="DictationPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Border Style="{StaticResource CardStyle}" Padding="18" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Voice input" Style="{StaticResource SectionHeadingStyle}" />
+                                <TextBlock Text="Choose where audio comes from and how the local model interprets it."
+                                           Foreground="{StaticResource SecondaryTextBrush}" FontSize="12" Margin="0,4,0,12" />
+                                <TextBlock Text="Microphone" Style="{StaticResource FieldLabelStyle}" />
+                                <ComboBox x:Name="MicComboBox" Height="36" SelectionChanged="OnMicChanged" />
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Transcription language" Style="{StaticResource FieldLabelStyle}" />
+                                        <ComboBox x:Name="LanguageComboBox" Height="36" SelectionChanged="OnLanguageChanged" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Accuracy and speed" Style="{StaticResource FieldLabelStyle}" />
+                                        <ComboBox x:Name="ModelSizeComboBox" Height="36" SelectionChanged="OnModelSizeChanged" />
+                                    </StackPanel>
+                                </Grid>
+                                <Border CornerRadius="9" Background="#101697FF" BorderBrush="#241697FF"
+                                        BorderThickness="1" Padding="12" Margin="0,10,0,0">
+                                    <TextBlock x:Name="ModelHintText" Text="Balanced gives the best everyday speed and accuracy."
+                                               FontSize="11" Foreground="#B8DFFF" TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource CardStyle}" Padding="18">
+                            <StackPanel>
+                                <TextBlock Text="Text finishing" Style="{StaticResource SectionHeadingStyle}" />
+                                <TextBlock Text="Clean up developer terms locally before the text reaches your app."
+                                           Foreground="{StaticResource SecondaryTextBrush}" FontSize="12" Margin="0,4,0,14" />
+                                <CheckBox x:Name="DeveloperCleanupCheckBox" Style="{StaticResource SwitchStyle}"
+                                          Checked="OnDeveloperCleanupToggled" Unchecked="OnDeveloperCleanupToggled">
+                                    <StackPanel>
+                                        <TextBlock Text="Developer vocabulary" FontSize="13" FontWeight="SemiBold" />
+                                        <TextBlock Text="Correct casing for GitHub, JavaScript, JSON, APIs, and your own terms."
+                                                   Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </CheckBox>
+                                <Button Content="Open custom vocabulary  ↗" Style="{StaticResource SecondaryButtonStyle}"
+                                        HorizontalAlignment="Left" Margin="52,8,0,12" Click="OnOpenVocabularyClicked" />
+                                <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,14" />
+                                <CheckBox x:Name="GrammarCorrectionCheckBox" Style="{StaticResource SwitchStyle}"
+                                          Checked="OnGrammarToggled" Unchecked="OnGrammarToggled">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Grammar correction" FontSize="13" FontWeight="SemiBold" />
+                                            <Border CornerRadius="8" Background="#26FFC857" Padding="7,2" Margin="8,0,0,0">
+                                                <TextBlock Text="BETA" FontFamily="Cascadia Code, Consolas" FontSize="9"
+                                                           Foreground="{StaticResource WarmBrush}" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock x:Name="GrammarHintText" Text="Polish English punctuation and sentence structure with local ONNX inference."
+                                                   Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </CheckBox>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
 
-                    <CheckBox x:Name="DeveloperCleanupCheckBox" Content="Developer vocabulary cleanup (casing &amp; symbols)" Margin="0,14,0,8" Foreground="#F8FAFC" Checked="OnDeveloperCleanupToggled" Unchecked="OnDeveloperCleanupToggled" />
+                <ScrollViewer x:Name="ContextPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Border Style="{StaticResource CardStyle}" Padding="24" Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="280" /></Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,26,0" VerticalAlignment="Center">
+                                    <TextBlock Text="Circle what words cannot show" Style="{StaticResource SectionHeadingStyle}" />
+                                    <TextBlock Text="While recording, draw a continuous circle around text, an image, or a UI element. Choose whether BetterVoice keeps the surrounding display or trims the image to your selection."
+                                               FontSize="13" LineHeight="20" Foreground="{StaticResource SecondaryTextBrush}"
+                                               TextWrapping="Wrap" Margin="0,8,0,0" />
+                                    <Border CornerRadius="9" Background="#101697FF" Padding="11" Margin="0,16,0,0">
+                                        <TextBlock Text="Both modes mark the circled target. The live preview and pointer trail are excluded from the saved image."
+                                                   Foreground="#B8DFFF" FontSize="11" TextWrapping="Wrap" />
+                                    </Border>
+                                </StackPanel>
+                                <Border Grid.Column="1" Width="260" Height="184" CornerRadius="12" Background="#0F141A"
+                                        BorderBrush="#2B3642" BorderThickness="1">
+                                    <Grid Margin="20">
+                                        <Border Width="174" Height="98" CornerRadius="8" Background="#1A222B" BorderBrush="#354250" BorderThickness="1">
+                                            <StackPanel Margin="14">
+                                                <Border Height="7" Width="90" CornerRadius="4" Background="#4B5867" HorizontalAlignment="Left" />
+                                                <Border Height="7" Width="118" CornerRadius="4" Background="#303B47" HorizontalAlignment="Left" Margin="0,10,0,0" />
+                                                <Border Height="26" Width="72" CornerRadius="6" Background="#203D5B" HorizontalAlignment="Left" Margin="0,14,0,0" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Ellipse Width="116" Height="116" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                 Stroke="#321697FF" StrokeThickness="16" />
+                                        <Ellipse Width="116" Height="116" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                 Stroke="{StaticResource AccentBrush}" StrokeThickness="4" StrokeDashArray="8,3" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Screenshot framing" Style="{StaticResource SectionHeadingStyle}" />
+                                <TextBlock Text="Choose one framing mode for every circle. The selected mode is used for both the saved session and clipboard paste."
+                                           Foreground="{StaticResource SecondaryTextBrush}" FontSize="12"
+                                           TextWrapping="Wrap" Margin="0,4,0,14" />
+                                <RadioButton x:Name="FullDisplayModeRadio" GroupName="CaptureMode" Tag="DEFAULT"
+                                             Style="{StaticResource CaptureModeCardStyle}"
+                                             Checked="OnCaptureModeChanged" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="Full display + highlight" FontSize="13" FontWeight="SemiBold" />
+                                        <TextBlock Text="Capture the entire monitor and draw a blue marker around the referenced area."
+                                                   Foreground="{StaticResource SecondaryTextBrush}" FontSize="11" Margin="0,3,14,0" />
+                                    </StackPanel>
+                                </RadioButton>
+                                <RadioButton x:Name="CroppedSelectionModeRadio" GroupName="CaptureMode" Tag="FOCUSED"
+                                             Style="{StaticResource CaptureModeCardStyle}"
+                                             Checked="OnCaptureModeChanged">
+                                    <StackPanel>
+                                        <TextBlock Text="Cropped selection" FontSize="13" FontWeight="SemiBold" />
+                                        <TextBlock Text="Capture and paste only the circled region with a small boundary around it."
+                                                   Foreground="{StaticResource SecondaryTextBrush}" FontSize="11" Margin="0,3,14,0" />
+                                    </StackPanel>
+                                </RadioButton>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Circle completion" Style="{StaticResource SectionHeadingStyle}" />
+                                        <TextBlock Text="Higher values reduce accidental screenshots; lower values accept looser gestures."
+                                                   Foreground="{StaticResource SecondaryTextBrush}" FontSize="12" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                    <Border Grid.Column="1" CornerRadius="10" Background="{StaticResource AccentSoftBrush}"
+                                            BorderBrush="#351697FF" BorderThickness="1" Padding="12,7">
+                                        <TextBlock x:Name="AngleLabel" Text="340°" FontFamily="Cascadia Code, Consolas"
+                                                   FontWeight="SemiBold" Foreground="{StaticResource CyanBrush}" />
+                                    </Border>
+                                </Grid>
+                                <Slider x:Name="AngleSlider" Minimum="300" Maximum="359" Value="340" TickFrequency="1"
+                                        IsSnapToTickEnabled="True" ValueChanged="OnAngleChanged" Margin="0,20,0,8" />
+                                <Grid>
+                                    <TextBlock Text="LOOSER" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock Text="STRICTER" Style="{StaticResource MetricLabelStyle}" HorizontalAlignment="Right" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
 
-                    <Button Content="Open Custom Vocabulary (JSON)" Height="30" Background="#334155" Foreground="#F8FAFC" BorderThickness="0" Margin="0,0,0,10" Click="OnOpenVocabularyClicked" />
+                <ScrollViewer x:Name="ShortcutsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="180" /></Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,28,0">
+                                    <TextBlock Text="Quick-note trigger" Style="{StaticResource SectionHeadingStyle}" />
+                                    <TextBlock Text="Choose how Alt starts and stops a short recording."
+                                               Foreground="{StaticResource SecondaryTextBrush}" FontSize="12" Margin="0,4,0,18" />
+                                    <TextBlock Text="Trigger behavior" Style="{StaticResource FieldLabelStyle}" />
+                                    <ComboBox x:Name="TriggerModeComboBox" Height="36" SelectionChanged="OnTriggerModeChanged">
+                                        <ComboBoxItem Content="Hold Alt to record" />
+                                        <ComboBoxItem Content="Press Alt to toggle" />
+                                        <ComboBoxItem Content="Double-tap Alt to toggle" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <Border Grid.Column="1" CornerRadius="12" Background="#0F141A" BorderBrush="#2B3642" BorderThickness="1">
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Border CornerRadius="10" Background="#222B35" BorderBrush="#506070" BorderThickness="1" Padding="24,15">
+                                            <TextBlock Text="ALT" FontFamily="Cascadia Code, Consolas" FontSize="18" FontWeight="SemiBold" />
+                                        </Border>
+                                        <TextBlock Text="GLOBAL HOTKEY" Style="{StaticResource MetricLabelStyle}" Margin="0,12,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <Border Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Hold delay" Style="{StaticResource SectionHeadingStyle}" />
+                                        <TextBlock Text="How long Alt must stay down before recording begins."
+                                                   Foreground="{StaticResource SecondaryTextBrush}" FontSize="12" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                    <Border Grid.Column="1" CornerRadius="10" Background="{StaticResource AccentSoftBrush}"
+                                            BorderBrush="#351697FF" BorderThickness="1" Padding="12,7">
+                                        <TextBlock x:Name="HoldDelayLabel" Text="140 ms" FontFamily="Cascadia Code, Consolas"
+                                                   FontWeight="SemiBold" Foreground="{StaticResource CyanBrush}" />
+                                    </Border>
+                                </Grid>
+                                <Slider x:Name="HoldDelaySlider" Minimum="50" Maximum="500" Value="140" TickFrequency="10"
+                                        IsSnapToTickEnabled="True" ValueChanged="OnHoldDelayChanged" Margin="0,20,0,8" />
+                                <Grid>
+                                    <TextBlock Text="FASTER  50 MS" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock Text="SAFER  500 MS" Style="{StaticResource MetricLabelStyle}" HorizontalAlignment="Right" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
 
-                    <CheckBox x:Name="GrammarCorrectionCheckBox" Content="Grammar Correction (English Beta - ONNX)" Foreground="#F8FAFC" Checked="OnGrammarToggled" Unchecked="OnGrammarToggled" />
-                </StackPanel>
-            </GroupBox>
-
-            <!-- Storage & Diagnostics -->
-            <GroupBox Header="Storage &amp; Sessions">
-                <StackPanel>
-                    <Button Content="Open Session Recordings Folder" Height="30" Background="#334155" Foreground="#F8FAFC" BorderThickness="0" Click="OnOpenSessionsClicked" />
-                </StackPanel>
-            </GroupBox>
-        </StackPanel>
-    </ScrollViewer>
+                <ScrollViewer x:Name="StoragePage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="60" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Border Width="44" Height="44" CornerRadius="12" Background="#1522C55E" BorderBrush="#304ADE80" BorderThickness="1">
+                                    <TextBlock Text="&#xE72E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="20"
+                                               Foreground="{StaticResource SuccessBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Your voice stays yours" Style="{StaticResource SectionHeadingStyle}" />
+                                    <TextBlock Text="Transcription, developer cleanup, grammar correction, and screenshot encoding run locally."
+                                               Foreground="{StaticResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,24,0">
+                                    <TextBlock Text="Session recordings" Style="{StaticResource SectionHeadingStyle}" />
+                                    <TextBlock Text="Review saved audio and screenshot context, or remove sessions you no longer need."
+                                               Foreground="{StaticResource SecondaryTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                    <TextBlock Text="%LOCALAPPDATA%\BetterVoice\Sessions" Style="{StaticResource MetricLabelStyle}"
+                                               Margin="0,14,0,0" Foreground="{StaticResource CyanBrush}" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Open folder  ↗" Style="{StaticResource SecondaryButtonStyle}"
+                                        VerticalAlignment="Center" Click="OnOpenSessionsClicked" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+    </Grid>
 </Window>

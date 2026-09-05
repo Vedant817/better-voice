@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using BetterVoice.App.Audio;
 using BetterVoice.App.Native;
 using BetterVoice.App.Overlay;
@@ -28,6 +30,12 @@ public sealed class AppController : IDisposable
     private TextInsertion.AppContext _recordingContext;
     private string? _currentSessionDir;
     private bool _hasGestureScreenshot;
+    private readonly List<string> _capturedScreenshotPaths = [];
+    private int _nextScreenshotIndex;
+    private readonly object _screenshotTaskLock = new();
+    private Task _pendingScreenshotCapture = Task.CompletedTask;
+    private string _preloadKey = string.Empty;
+    private bool _preloadedGrammar;
 
     public SettingsManager Settings => _settingsManager;
 
@@ -56,12 +64,27 @@ public sealed class AppController : IDisposable
         _inputMonitor.QuickTriggerMode = settings.QuickTriggerMode;
         _inputMonitor.HoldDelayMilliseconds = settings.QuickHoldDelayMilliseconds;
         _inputMonitor.SetCircleSensitivity(settings.CircleMinimumAngleDegrees);
+
+        string preloadKey = $"{settings.TranscriptionLanguageCode}:{settings.TranscriptionModelSize}";
+        if (preloadKey != _preloadKey || (settings.GrammarCorrectionEnabled && !_preloadedGrammar))
+        {
+            ScheduleModelPreload();
+        }
     }
 
     public void Start()
     {
         _trailOverlay.Show();
         _inputMonitor.Start();
+        ScheduleModelPreload();
+    }
+
+    private void ScheduleModelPreload()
+    {
+        var settings = _settingsManager.Current;
+        _preloadKey = $"{settings.TranscriptionLanguageCode}:{settings.TranscriptionModelSize}";
+        _preloadedGrammar = settings.GrammarCorrectionEnabled;
+        _ = _transcriber.PreloadAsync();
     }
 
     public void ShowSettings()
@@ -121,6 +144,9 @@ public sealed class AppController : IDisposable
         _recordingStartedAt = DateTime.UtcNow;
         _recordingContext = TextInsertion.GetCurrentContext();
         _hasGestureScreenshot = false;
+        _capturedScreenshotPaths.Clear();
+        _nextScreenshotIndex = 0;
+        lock (_screenshotTaskLock) _pendingScreenshotCapture = Task.CompletedTask;
 
         string sessionId = $"{DateTime.UtcNow:yyyy-MM-ddTHH-mm-ssZ}-{Guid.NewGuid()}";
         _currentSessionDir = Path.Combine(
@@ -153,6 +179,10 @@ public sealed class AppController : IDisposable
         string? audioPath = _recorder.CurrentFilePath;
         await _recorder.StopAsync();
 
+        Task pendingCapture;
+        lock (_screenshotTaskLock) pendingCapture = _pendingScreenshotCapture;
+        await pendingCapture;
+
         double duration = _recordingStartedAt.HasValue
             ? (DateTime.UtcNow - _recordingStartedAt.Value).TotalSeconds
             : 0;
@@ -172,10 +202,39 @@ public sealed class AppController : IDisposable
             hasContext: _hasGestureScreenshot,
             duration: duration);
 
-        if (disposition == SessionCompletionDisposition.Deliver && !string.IsNullOrWhiteSpace(transcript))
+        if (disposition == SessionCompletionDisposition.Deliver)
         {
-            await TextInsertion.InsertTextAsync(transcript, context);
-            _settingsManager.AddRecentTranscript(transcript);
+            bool insertedTranscript = !string.IsNullOrWhiteSpace(transcript);
+            if (insertedTranscript)
+            {
+                await TextInsertion.InsertTextAsync(transcript, context);
+                _settingsManager.AddRecentTranscript(transcript);
+            }
+
+            if (_capturedScreenshotPaths.Count > 0)
+            {
+                _hud.SetState("Pasting cropped context...", "BetterVoice", isRecording: false);
+                int pastedImages = await TextInsertion.InsertImagesAsync(
+                    _capturedScreenshotPaths,
+                    context,
+                    waitForPriorPaste: insertedTranscript);
+
+                if (pastedImages > 0)
+                {
+                    string deliveryStatus = insertedTranscript
+                        ? pastedImages == 1
+                            ? "Transcript + crop inserted"
+                            : $"Transcript + {pastedImages} crops inserted"
+                        : pastedImages == 1
+                            ? "Crop inserted"
+                            : $"{pastedImages} crops inserted";
+                    _hud.SetState(
+                        deliveryStatus,
+                        "BetterVoice",
+                        isRecording: false);
+                    await Task.Delay(450);
+                }
+            }
         }
 
         _trailOverlay.ClearTrail();
@@ -186,7 +245,12 @@ public sealed class AppController : IDisposable
     {
         if (_isRecording)
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() => _trailOverlay.AddPoint(point));
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(
+                DispatcherPriority.Render,
+                new Action(() =>
+                {
+                    if (_isRecording) _trailOverlay.AddPoint(point);
+                }));
         }
     }
 
@@ -194,21 +258,64 @@ public sealed class AppController : IDisposable
     {
         if (!_isRecording || string.IsNullOrEmpty(_currentSessionDir)) return;
 
-        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        string sessionDir = _currentSessionDir;
+        int screenshotIndex = ++_nextScreenshotIndex;
+        ScreenContextCaptureMode captureMode = _settingsManager.Current.ScreenContextCaptureMode;
+        lock (_screenshotTaskLock)
         {
-            _trailOverlay.HighlightCircle(gesture);
-            string screenshotPath = Path.Combine(_currentSessionDir, "context.png");
-            try
+            Task previous = _pendingScreenshotCapture;
+            _pendingScreenshotCapture = CaptureGestureAfterAsync(
+                previous,
+                gesture,
+                sessionDir,
+                screenshotIndex,
+                captureMode);
+        }
+    }
+
+    private async Task CaptureGestureAfterAsync(
+        Task previous,
+        CircleGesture gesture,
+        string sessionDir,
+        int screenshotIndex,
+        ScreenContextCaptureMode captureMode)
+    {
+        try
+        {
+            await previous;
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                () => _trailOverlay.HighlightCircle(gesture, captureMode),
+                DispatcherPriority.Render);
+
+            // Let one render frame expose the exact crop before capture. The
+            // click-through overlay is excluded from the saved bitmap.
+            await Task.Delay(180);
+
+            string screenshotPath = Path.Combine(sessionDir, $"context-{screenshotIndex}.png");
+            await Task.Run(() => ScreenshotCapture.Capture(gesture, screenshotPath, captureMode));
+
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                ScreenshotCapture.Capture(gesture, screenshotPath);
-                _hasGestureScreenshot = true;
-                _hud.SetState("Target Circled", "Context Saved", isRecording: true);
-            }
-            catch
-            {
-                // ignored
-            }
-        });
+                if (string.Equals(_currentSessionDir, sessionDir, StringComparison.Ordinal))
+                {
+                    _capturedScreenshotPaths.Add(screenshotPath);
+                    _hasGestureScreenshot = true;
+                    if (_isRecording)
+                    {
+                        _hud.SetState(
+                            captureMode == ScreenContextCaptureMode.CroppedSelection
+                                ? "Crop captured"
+                                : "Display captured",
+                            "Context ready to paste",
+                            isRecording: true);
+                    }
+                }
+            });
+        }
+        catch
+        {
+            // Screenshot context is optional; dictation must remain available.
+        }
     }
 
     public void Dispose()

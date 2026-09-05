@@ -14,6 +14,13 @@ using Xunit.Abstractions;
 
 namespace BetterVoice.Integration.Tests;
 
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class PerformanceBenchmarkCollection
+{
+    public const string Name = "Performance benchmarks";
+}
+
+[Collection(PerformanceBenchmarkCollection.Name)]
 public class PerformanceBenchmarks
 {
     private readonly ITestOutputHelper _output;
@@ -27,26 +34,29 @@ public class PerformanceBenchmarks
     public void Benchmark_CircleGestureDetector_Throughput()
     {
         var detector = new CircleGestureDetector();
-        int iterations = 100_000;
+        const int circleCount = 2_000;
+        const int samplesPerCircle = 48;
+        int iterations = circleCount * (samplesPerCircle + 1);
         var center = new PointD(500, 500);
-
-        // Warmup
-        for (int i = 0; i < 1_000; i++)
-        {
-            double a = (double)i / 47.0 * 2.0 * Math.PI;
-            detector.Add(new PointD(center.X + 50 * Math.Cos(a), center.Y + 50 * Math.Sin(a)), (double)i / 60.0);
-        }
-        detector.Reset();
 
         var sw = Stopwatch.StartNew();
         int gesturesFound = 0;
-        for (int i = 0; i < iterations; i++)
+        double time = 0;
+        for (int circle = 0; circle < circleCount; circle++)
         {
-            double a = (double)(i % 48) / 47.0 * 2.0 * Math.PI;
-            if (detector.Add(new PointD(center.X + 50 * Math.Cos(a), center.Y + 50 * Math.Sin(a)), (double)i / 60.0) != null)
+            for (int sample = 0; sample < samplesPerCircle; sample++)
             {
-                gesturesFound++;
+                double angle = (double)sample / (samplesPerCircle - 1) * 2.0 * Math.PI;
+                time += 1.0 / 60.0;
+                if (detector.Add(new PointD(center.X + 50 * Math.Cos(angle), center.Y + 50 * Math.Sin(angle)), time) != null)
+                {
+                    gesturesFound++;
+                }
             }
+
+            time += 1.0;
+            detector.Add(new PointD(center.X + 200, center.Y), time);
+            time += 0.5;
         }
         sw.Stop();
 
@@ -61,7 +71,8 @@ public class PerformanceBenchmarks
         _output.WriteLine($"Throughput: {opsPerSec:N0} samples/second");
         _output.WriteLine($"Recognized Gestures: {gesturesFound:N0}");
 
-        Assert.True(opsPerSec > 500_000, "Should process at least 500k samples/sec");
+        Assert.True(gesturesFound >= circleCount * 0.95, "Benchmark must exercise the full recognition path");
+        Assert.True(opsPerSec > 20_000, "Should process realistic circle streams far above the 60 Hz input rate");
     }
 
     [Fact]
@@ -182,10 +193,16 @@ public class PerformanceBenchmarks
         double audioDurationSeconds = (fileInfo.Length - 44) / 32000.0;
 
         var settingsManager = new SettingsManager(TestPaths.SettingsFile());
+        settingsManager.Current.TranscriptionModelSize = TranscriptionModelSize.Balanced;
         using var transcriber = new LocalTranscriber(settingsManager);
 
-        // Warmup inference
-        _ = await transcriber.TranscribeAsync(wavPath, DeveloperAppProfile.General);
+        var preload = Stopwatch.StartNew();
+        Assert.True(await transcriber.PreloadAsync());
+        preload.Stop();
+
+        var firstUse = Stopwatch.StartNew();
+        string firstResult = await transcriber.TranscribeAsync(wavPath, DeveloperAppProfile.General);
+        firstUse.Stop();
 
         var sw = Stopwatch.StartNew();
         int iterations = 3;
@@ -201,11 +218,79 @@ public class PerformanceBenchmarks
         double rtf = avgInferenceSec / audioDurationSeconds;
 
         _output.WriteLine($"--- WHISPER.NET SPEECH RECOGNITION PERFORMANCE ---");
+        _output.WriteLine($"Model: {settingsManager.Current.TranscriptionModelSize.DisplayName()}");
+        _output.WriteLine($"Native runtime: {Whisper.net.LibraryLoader.RuntimeOptions.LoadedLibrary}");
+        _output.WriteLine($"Background preload: {preload.Elapsed.TotalMilliseconds:F1} ms");
+        _output.WriteLine($"First user inference after preload: {firstUse.Elapsed.TotalMilliseconds:F1} ms");
         _output.WriteLine($"Audio Length: {audioDurationSeconds:F2} seconds");
         _output.WriteLine($"Average Inference Time: {avgInferenceMs:F1} ms");
         _output.WriteLine($"Real-Time Factor (RTF): {rtf:F3}x ({(1.0 / rtf):F1}x faster than real time!)");
         _output.WriteLine($"Decoded Text: \"{lastResult}\"");
 
         Assert.True(rtf < 0.5, "Whisper.net should be at least 2x faster than real-time (RTF < 0.5)");
+        Assert.Contains("JavaScript", firstResult, StringComparison.Ordinal);
+        Assert.True(firstUse.Elapsed < TimeSpan.FromSeconds(2), "Preloading should remove the native runtime cold-start from first use");
+        Assert.Contains("JavaScript", lastResult, StringComparison.Ordinal);
+        Assert.Contains("JSON", lastResult, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Benchmark_GrammarCorrection_WarmLatency()
+    {
+        using var corrector = new GrammarCorrector();
+        Assert.True(await corrector.PreloadAsync());
+        _ = await corrector.CorrectAsync("he go to school yesterday");
+
+        const int iterations = 5;
+        var samples = new double[iterations];
+        for (int index = 0; index < iterations; index++)
+        {
+            var sw = Stopwatch.StartNew();
+            string result = await corrector.CorrectAsync("she dont like apples");
+            sw.Stop();
+            Assert.Equal("She doesn't like apples.", result);
+            samples[index] = sw.Elapsed.TotalMilliseconds;
+        }
+
+        Array.Sort(samples);
+        double average = samples.Average();
+        double p95 = samples[^1];
+        _output.WriteLine("--- GRAMMAR CORRECTION PERFORMANCE ---");
+        _output.WriteLine($"Average warm inference: {average:F1} ms");
+        _output.WriteLine($"Observed p95: {p95:F1} ms");
+        Assert.True(p95 < 500, "Warm grammar correction should complete within 500 ms");
+    }
+
+    [Fact]
+    public void Benchmark_ScreenshotCapture_JpegLatency()
+    {
+        const int iterations = 5;
+        var samples = new double[iterations];
+        var gesture = new CircleGesture(new PointD(350, 250), 55);
+
+        for (int index = 0; index < iterations; index++)
+        {
+            string path = Path.Combine(Path.GetTempPath(), $"bettervoice_capture_{Guid.NewGuid():N}.jpg");
+            try
+            {
+                var sw = Stopwatch.StartNew();
+                ScreenshotCapture.Capture(gesture, path, ScreenContextCaptureMode.FullDisplayWithHighlight);
+                sw.Stop();
+                samples[index] = sw.Elapsed.TotalMilliseconds;
+                Assert.True(new FileInfo(path).Length > 5_000);
+            }
+            finally
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+        }
+
+        Array.Sort(samples);
+        double average = samples.Average();
+        double p95 = samples[^1];
+        _output.WriteLine("--- SCREENSHOT CAPTURE PERFORMANCE ---");
+        _output.WriteLine($"Average full-monitor JPEG capture: {average:F1} ms");
+        _output.WriteLine($"Observed p95: {p95:F1} ms");
+        Assert.True(p95 < 250, "Screenshot capture should avoid a visible UI stall");
     }
 }
