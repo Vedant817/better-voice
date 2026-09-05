@@ -22,6 +22,7 @@ public class RealWorldVoiceAndSubsystemsTests
         var settingsManager = new SettingsManager(TestPaths.SettingsFile());
         settingsManager.Current.DeveloperCleanupEnabled = true;
         settingsManager.Current.TranscriptionLanguageCode = "en";
+        settingsManager.Current.TranscriptionModelSize = TranscriptionModelSize.Balanced;
 
         using var transcriber = new LocalTranscriber(settingsManager);
         string transcript = await transcriber.TranscribeAsync(wavPath, DeveloperAppProfile.General);
@@ -31,9 +32,9 @@ public class RealWorldVoiceAndSubsystemsTests
         // Verify that Whisper decoded the audio and DeveloperTextCleanup applied proper developer casing!
         Assert.Contains("BetterVoice", transcript, StringComparison.OrdinalIgnoreCase);
 
-        // DeveloperTextCleanup should have cased JavaScript, JSON, or API properly
-        bool hasDeveloperCasing = transcript.Contains("JavaScript") || transcript.Contains("JSON") || transcript.Contains("API");
-        Assert.True(hasDeveloperCasing, $"Expected developer casing in transcript: {transcript}");
+        Assert.Contains("JavaScript", transcript, StringComparison.Ordinal);
+        Assert.Contains("JSON", transcript, StringComparison.Ordinal);
+        Assert.Contains("API", transcript, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -52,15 +53,24 @@ public class RealWorldVoiceAndSubsystemsTests
         string tempPng = Path.Combine(Path.GetTempPath(), $"circle_capture_test_{Guid.NewGuid()}.png");
         try
         {
-            var gesture = new CircleGesture(new PointD(350, 250), 55);
-            ScreenshotCapture.Capture(gesture, tempPng);
+            var screenBounds = System.Windows.Forms.Screen.PrimaryScreen?.Bounds
+                ?? new Rectangle(0, 0, 1920, 1080);
+            var gesture = new CircleGesture(
+                new PointD(screenBounds.Left + screenBounds.Width / 2.0, screenBounds.Top + screenBounds.Height / 2.0),
+                55);
+            Rectangle expectedCrop = ScreenshotCapture.GetCropBounds(gesture, screenBounds);
+            ScreenshotCapture.Capture(gesture, tempPng, ScreenContextCaptureMode.CroppedSelection);
 
             Assert.True(File.Exists(tempPng), "Screenshot file should be created");
             var fileInfo = new FileInfo(tempPng);
             Assert.True(fileInfo.Length > 5000, "Screenshot should be non-trivial size");
 
             using var img = Image.FromFile(tempPng);
-            Assert.True(img.Width > 0 && img.Height > 0, "Valid image dimensions");
+            Assert.Equal(expectedCrop.Width, img.Width);
+            Assert.Equal(expectedCrop.Height, img.Height);
+            Assert.True(
+                img.Width < screenBounds.Width || img.Height < screenBounds.Height,
+                "A context capture should contain only the circled crop, not the whole display");
         }
         finally
         {
@@ -68,6 +78,38 @@ public class RealWorldVoiceAndSubsystemsTests
             {
                 File.Delete(tempPng);
             }
+        }
+    }
+
+    [Fact]
+    public void TestRealFullDisplayCaptureKeepsMonitorAndHighlightsTarget()
+    {
+        string tempPng = Path.Combine(Path.GetTempPath(), $"full_display_capture_test_{Guid.NewGuid()}.png");
+        try
+        {
+            Rectangle screenBounds = System.Windows.Forms.Screen.PrimaryScreen?.Bounds
+                ?? new Rectangle(0, 0, 1920, 1080);
+            var gesture = new CircleGesture(
+                new PointD(screenBounds.Left + screenBounds.Width / 2.0, screenBounds.Top + screenBounds.Height / 2.0),
+                55);
+
+            ScreenshotCapture.Capture(
+                gesture,
+                tempPng,
+                ScreenContextCaptureMode.FullDisplayWithHighlight);
+
+            using var image = new Bitmap(tempPng);
+            Assert.Equal(screenBounds.Width, image.Width);
+            Assert.Equal(screenBounds.Height, image.Height);
+
+            int markerX = Math.Clamp((int)Math.Round(gesture.Center.X - screenBounds.Left + gesture.Radius), 0, image.Width - 1);
+            int markerY = Math.Clamp((int)Math.Round(gesture.Center.Y - screenBounds.Top), 0, image.Height - 1);
+            Color marker = image.GetPixel(markerX, markerY);
+            Assert.True(marker.B > 180 && marker.A > 200, "The full-display image must retain the blue target marker");
+        }
+        finally
+        {
+            if (File.Exists(tempPng)) File.Delete(tempPng);
         }
     }
 
@@ -119,28 +161,129 @@ public class RealWorldVoiceAndSubsystemsTests
         settings.SettingsChanged += _ => changeNotifications++;
         settings.Current.CircleMinimumAngleDegrees = 345;
         settings.Current.QuickTriggerMode = RecordingTriggerMode.DoubleTap;
+        settings.Current.TranscriptionModelSize = TranscriptionModelSize.Accurate;
+        settings.Current.ScreenContextCaptureMode = ScreenContextCaptureMode.CroppedSelection;
         settings.Save();
 
         Assert.Equal(1, changeNotifications);
         var reloaded = new SettingsManager(settingsPath);
         Assert.Equal(345, reloaded.Current.CircleMinimumAngleDegrees);
         Assert.Equal(RecordingTriggerMode.DoubleTap, reloaded.Current.QuickTriggerMode);
+        Assert.Equal(TranscriptionModelSize.Accurate, reloaded.Current.TranscriptionModelSize);
+        Assert.Equal(ScreenContextCaptureMode.CroppedSelection, reloaded.Current.ScreenContextCaptureMode);
 
         // Reset to default
         settings.Current.CircleMinimumAngleDegrees = 340;
         settings.Current.QuickTriggerMode = RecordingTriggerMode.Hold;
+        settings.Current.TranscriptionModelSize = TranscriptionModelSize.Balanced;
+        settings.Current.ScreenContextCaptureMode = ScreenContextCaptureMode.FullDisplayWithHighlight;
         settings.Save();
     }
 
     [Fact]
     public void TestTranscriberSelectsEnglishAndMultilingualModels()
     {
-        string english = LocalTranscriber.GetModelPath(TranscriptionLanguage.English);
-        string multilingual = LocalTranscriber.GetModelPath(TranscriptionLanguage.Automatic);
+        string english = LocalTranscriber.GetModelPath(TranscriptionLanguage.English, TranscriptionModelSize.Balanced);
+        string multilingual = LocalTranscriber.GetModelPath(TranscriptionLanguage.Automatic, TranscriptionModelSize.Balanced);
+        string fast = LocalTranscriber.GetModelPath(TranscriptionLanguage.English, TranscriptionModelSize.Fast);
+        string accurate = LocalTranscriber.GetModelPath(TranscriptionLanguage.English, TranscriptionModelSize.Accurate);
 
-        Assert.EndsWith("ggml-tiny.en.bin", english, StringComparison.OrdinalIgnoreCase);
-        Assert.EndsWith("ggml-tiny.bin", multilingual, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("ggml-base.en.bin", english, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("ggml-base.bin", multilingual, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("ggml-tiny.en.bin", fast, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("ggml-small.en.bin", accurate, StringComparison.OrdinalIgnoreCase);
         Assert.NotEqual(english, multilingual);
+    }
+
+    [Theory]
+    [InlineData(500, 400, 50, 442, 342, 116, 116)]
+    [InlineData(5, 5, 50, 0, 0, 63, 63)]
+    [InlineData(995, 795, 50, 937, 737, 63, 63)]
+    public void TestScreenshotCropMatchesCircleAndClampsToDisplay(
+        double centerX,
+        double centerY,
+        double radius,
+        int expectedX,
+        int expectedY,
+        int expectedWidth,
+        int expectedHeight)
+    {
+        var screenBounds = new Rectangle(0, 0, 1000, 800);
+        Rectangle crop = ScreenshotCapture.GetCropBounds(
+            new CircleGesture(new PointD(centerX, centerY), radius),
+            screenBounds);
+
+        Assert.Equal(new Rectangle(expectedX, expectedY, expectedWidth, expectedHeight), crop);
+        Assert.True(screenBounds.Contains(crop));
+    }
+
+    [Fact]
+    public void TestScreenshotCropSupportsNegativeMonitorCoordinates()
+    {
+        var screenBounds = new Rectangle(-1920, 0, 1920, 1080);
+        var gesture = new CircleGesture(new PointD(-1800, 300), 80);
+
+        Rectangle crop = ScreenshotCapture.GetCropBounds(gesture, screenBounds);
+
+        Assert.Equal(new Rectangle(-1888, 212, 176, 176), crop);
+        Assert.True(screenBounds.Contains(crop));
+    }
+
+    [Fact]
+    public void TestScreenshotCropUsesDrawnLoopExtentsForWideSelections()
+    {
+        var screenBounds = new Rectangle(0, 0, 1000, 800);
+        var gesture = new CircleGesture(
+            new PointD(500, 400),
+            Radius: 72,
+            HalfWidth: 100,
+            HalfHeight: 40);
+
+        Rectangle crop = ScreenshotCapture.GetCropBounds(gesture, screenBounds);
+
+        Assert.Equal(new Rectangle(390, 350, 220, 100), crop);
+    }
+
+    [Fact]
+    public void TestCaptureModeSelectsExactlyOneFramingBoundary()
+    {
+        var screenBounds = new Rectangle(-1920, 0, 1920, 1080);
+        var gesture = new CircleGesture(new PointD(-1200, 400), 75, 120, 60);
+
+        Rectangle full = ScreenshotCapture.GetCaptureBounds(
+            gesture,
+            screenBounds,
+            ScreenContextCaptureMode.FullDisplayWithHighlight);
+        Rectangle cropped = ScreenshotCapture.GetCaptureBounds(
+            gesture,
+            screenBounds,
+            ScreenContextCaptureMode.CroppedSelection);
+
+        Assert.Equal(screenBounds, full);
+        Assert.Equal(new Rectangle(-1332, 328, 264, 144), cropped);
+        Assert.NotEqual(full, cropped);
+    }
+
+    [Fact]
+    public void TestWhisperPromptIsBoundedAndIncludesCustomVocabulary()
+    {
+        string prompt = LocalTranscriber.BuildVocabularyPrompt(
+            [("cube cuttle", "kubectl"), ("better voice", "BetterVoice")]);
+
+        Assert.Contains("JavaScript", prompt, StringComparison.Ordinal);
+        Assert.Contains("kubectl", prompt, StringComparison.Ordinal);
+        Assert.True(prompt.Length <= 240);
+        Assert.Equal(1, prompt.Split("BetterVoice").Length - 1);
+    }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(4, 2)]
+    [InlineData(16, 8)]
+    [InlineData(24, 8)]
+    public void TestRecommendedWhisperThreadCount(int logicalProcessors, int expected)
+    {
+        Assert.Equal(expected, LocalTranscriber.RecommendedThreadCount(logicalProcessors));
     }
 
     [Theory]
