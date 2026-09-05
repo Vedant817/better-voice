@@ -1046,19 +1046,27 @@ public class HarnessStressTests
     public void Stress_CircleGestureDetector_OneMillionSamples_SustainedThroughput()
     {
         var detector = new CircleGestureDetector();
-        int totalSamples = 1_000_000;
+        const int circleCount = 20_000;
+        const int samplesPerCircle = 48;
+        int totalSamples = circleCount * (samplesPerCircle + 1);
         var center = new PointD(500, 500);
         int recognizedGestures = 0;
+        double time = 0;
 
         var sw = Stopwatch.StartNew();
-        for (int i = 0; i < totalSamples; i++)
+        for (int circle = 0; circle < circleCount; circle++)
         {
-            double a = (double)(i % 48) / 47.0 * 2.0 * Math.PI;
-            var pt = new PointD(center.X + 50 * Math.Cos(a), center.Y + 50 * Math.Sin(a));
-            if (detector.Add(pt, (double)i / 60.0) != null)
+            for (int sample = 0; sample < samplesPerCircle; sample++)
             {
-                recognizedGestures++;
+                double angle = (double)sample / (samplesPerCircle - 1) * 2.0 * Math.PI;
+                var point = new PointD(center.X + 50 * Math.Cos(angle), center.Y + 50 * Math.Sin(angle));
+                time += 1.0 / 60.0;
+                if (detector.Add(point, time) != null) recognizedGestures++;
             }
+
+            time += 1.0;
+            detector.Add(new PointD(center.X + 200, center.Y), time);
+            time += 0.5;
         }
         sw.Stop();
 
@@ -1069,8 +1077,9 @@ public class HarnessStressTests
         _output.WriteLine($"[STRESS] Processed {totalSamples:N0} samples in {sw.Elapsed.TotalMilliseconds:F1} ms");
         _output.WriteLine($"[STRESS] Throughput: {throughput:N0} samples/sec | Latency: {usPerSample:F3} µs/sample");
 
-        Assert.True(throughput > 500_000, $"Throughput {throughput:N0} samples/sec should exceed 500k samples/sec");
-        Assert.True(usPerSample < 2.0, $"Per-sample latency {usPerSample:F3} µs should be sub-2 microseconds");
+        Assert.True(recognizedGestures >= circleCount * 0.95, "Stress run must exercise full gesture recognition repeatedly");
+        Assert.True(throughput > 20_000, $"Throughput {throughput:N0} samples/sec should remain far above 60 Hz input");
+        Assert.True(usPerSample < 50.0, $"Per-sample latency {usPerSample:F3} µs should remain sub-50 microseconds");
     }
 
     [Fact]

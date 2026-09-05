@@ -7,7 +7,11 @@ namespace BetterVoice.Core;
 
 public readonly record struct PointD(double X, double Y);
 
-public readonly record struct CircleGesture(PointD Center, double Radius);
+public readonly record struct CircleGesture(
+    PointD Center,
+    double Radius,
+    double HalfWidth = 0,
+    double HalfHeight = 0);
 
 /// <summary>
 /// Detects one closed, roughly circular mouse stroke at a time.
@@ -248,6 +252,6 @@ public sealed class CircleGestureDetector
         double lengthRatio = pathLength / circumference;
         if (lengthRatio <= 0.65 || lengthRatio >= 1.9) return null;
 
-        return new CircleGesture(center, meanRadius);
+        return new CircleGesture(center, meanRadius, width / 2.0, height / 2.0);
     }
 }

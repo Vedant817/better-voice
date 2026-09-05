@@ -30,15 +30,17 @@ public sealed class GrammarCorrector : IDisposable
         "BetterVoice", "Models", "t5-tiny-gec-hone");
 
     private readonly string _modelDir;
+    private readonly int _intraOpThreads;
     private readonly SemaphoreSlim _loadLock = new(1, 1);
     private InferenceSession? _encoderSession;
     private InferenceSession? _decoderSession;
     private T5Tokenizer? _tokenizer;
     private bool _isLoaded;
 
-    public GrammarCorrector(string? modelDirectory = null)
+    public GrammarCorrector(string? modelDirectory = null, int? intraOpThreads = null)
     {
         _modelDir = modelDirectory ?? DefaultModelDir;
+        _intraOpThreads = intraOpThreads ?? 0;
     }
 
     public bool IsCached() => RequiredFiles.All(file => File.Exists(Path.Combine(_modelDir, file.LocalName)));
@@ -51,7 +53,12 @@ public sealed class GrammarCorrector : IDisposable
             if (_isLoaded) return true;
 
             await EnsureModelDownloadedAsync();
-            var options = new SessionOptions { IntraOpNumThreads = 2 };
+            var options = new SessionOptions
+            {
+                IntraOpNumThreads = _intraOpThreads,
+                ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
+                GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL
+            };
             _encoderSession = new InferenceSession(Path.Combine(_modelDir, "encoder_model_quantized.onnx"), options);
             _decoderSession = new InferenceSession(Path.Combine(_modelDir, "decoder_model_merged_quantized.onnx"), options);
             _tokenizer = T5Tokenizer.Load(Path.Combine(_modelDir, "tokenizer.json"));

@@ -13,8 +13,10 @@ public sealed class AppSettings
     public int QuickHoldDelayMilliseconds { get; set; } = 140;
     public double CircleMinimumAngleDegrees { get; set; } = 340;
     public string TranscriptionLanguageCode { get; set; } = "en";
+    public TranscriptionModelSize TranscriptionModelSize { get; set; } = TranscriptionModelSize.Balanced;
     public bool DeveloperCleanupEnabled { get; set; } = true;
     public bool GrammarCorrectionEnabled { get; set; } = false;
+    public ScreenContextCaptureMode ScreenContextCaptureMode { get; set; } = ScreenContextCaptureMode.FullDisplayWithHighlight;
     public List<string> RecentTranscripts { get; set; } = [];
 }
 
@@ -47,7 +49,12 @@ public sealed class SettingsManager
             try
             {
                 string json = File.ReadAllText(_settingsFilePath);
-                return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                AppSettings settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                if (!Enum.IsDefined(settings.ScreenContextCaptureMode))
+                {
+                    settings.ScreenContextCaptureMode = ScreenContextCaptureMode.FullDisplayWithHighlight;
+                }
+                return settings;
             }
             catch
             {
